@@ -1,7 +1,7 @@
 import os
 import asyncio
 import logging
-from aiohttp import web
+from aiohttp import web, ClientSession
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
@@ -23,6 +23,7 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", "5337661007"))
 CARD_NUMBER = os.getenv("CARD_NUMBER", "4067 0700 0848 5596")
 CARD_HOLDER = os.getenv("CARD_HOLDER", "Ruziyev Javlonbek")
 ADMIN_USERNAME = "@Astrummed_manager"
+RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL")
 
 BOOKS = {
     "part_1": {
@@ -245,9 +246,21 @@ async def process_receipt(message: types.Message, state: FSMContext):
     )
     await state.clear()
 
-# Render Web Service uchun maxsus sog'lomlik tekshiruvi (Health check)
 async def handle_ping(request):
-    return web.Response(text="Bot is running 24/7 successfully!")
+    return web.Response(text="Bot is running 24/7 alive!")
+
+# Server hech qachon uxlamasligi uchun har 10 daqiqada o'zini o'zi chaqirib (ping) turuvchi tizim
+async def keep_alive_loop():
+    await asyncio.sleep(60)
+    while True:
+        url = RENDER_APP_URL or "http://localhost:8080"
+        try:
+            async with ClientSession() as session:
+                async with session.get(url) as resp:
+                    logging.info(f"Keep-alive ping sent to {url}, status: {resp.status}")
+        except Exception as e:
+            logging.warning(f"Keep-alive ping error: {e}")
+        await asyncio.sleep(600)  # Har 10 daqiqada turtib turadi
 
 async def start_web_server():
     app = web.Application()
@@ -261,8 +274,9 @@ async def start_web_server():
     logging.info(f"Veb server port {port} da ishga tushdi")
 
 async def main():
-    print("Bot va Veb-server ishga tushdi...")
+    print("Bot va o'z-o'zini uyg'oq saqlash tizimi ishga tushdi...")
     await start_web_server()
+    asyncio.create_task(keep_alive_loop())
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
