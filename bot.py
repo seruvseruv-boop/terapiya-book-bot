@@ -247,20 +247,31 @@ async def process_receipt(message: types.Message, state: FSMContext):
     await state.clear()
 
 async def handle_ping(request):
-    return web.Response(text="Bot is running 24/7 alive!")
+    return web.Response(text="Bot is running 24/7 alive and active!")
 
-# Server hech qachon uxlamasligi uchun har 10 daqiqada o'zini o'zi chaqirib (ping) turuvchi tizim
-async def keep_alive_loop():
-    await asyncio.sleep(60)
+# 1-qatlam: Render ilovasi o'zini o'zi har 3 daqiqada uyg'otib turuvchi tezkor tizim
+async def self_ping_loop():
+    await asyncio.sleep(20)
     while True:
         url = RENDER_APP_URL or "http://localhost:8080"
         try:
             async with ClientSession() as session:
-                async with session.get(url) as resp:
-                    logging.info(f"Keep-alive ping sent to {url}, status: {resp.status}")
+                async with session.get(f"{url}/ping") as resp:
+                    logging.info(f"Self-ping sent, status: {resp.status}")
         except Exception as e:
-            logging.warning(f"Keep-alive ping error: {e}")
-        await asyncio.sleep(600)  # Har 10 daqiqada turtib turadi
+            logging.warning(f"Self-ping error: {e}")
+        await asyncio.sleep(180)  # Har 3 daqiqada doimiy uyg'otish
+
+# 2-qatlam: Telegram API bilan aloqani uzluksiz yangilab turuvchi mustahkam tsikl
+async def telegram_keep_alive():
+    await asyncio.sleep(30)
+    while True:
+        try:
+            me = await bot.get_me()
+            logging.info(f"Telegram connection active: @{me.username}")
+        except Exception as e:
+            logging.warning(f"Telegram healthcheck error: {e}")
+        await asyncio.sleep(120)  # Har 2 daqiqada Telegram aloqasini yangilab turish
 
 async def start_web_server():
     app = web.Application()
@@ -274,9 +285,10 @@ async def start_web_server():
     logging.info(f"Veb server port {port} da ishga tushdi")
 
 async def main():
-    print("Bot va o'z-o'zini uyg'oq saqlash tizimi ishga tushdi...")
+    print("Ko'p qatlamli uyg'oq saqlash tizimi bilan bot ishga tushdi...")
     await start_web_server()
-    asyncio.create_task(keep_alive_loop())
+    asyncio.create_task(self_ping_loop())
+    asyncio.create_task(telegram_keep_alive())
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
